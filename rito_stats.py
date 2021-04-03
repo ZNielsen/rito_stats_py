@@ -1,4 +1,5 @@
 import json
+import requests
 
 API_KEY = ""
 with open("api.key", "r") as f:
@@ -29,10 +30,10 @@ class Game:
 
 def get_encrypted_account_id(summ_name):
     slug = "/lol/summoner/v4/summoners/by-name/" + summ_name + "?api_key=" + API_KEY
-    request = ENDPOINT + slug;
-    print("Sending reqwest: " + request);
-
-    return j["accountId"]
+    request = ENDPOINT + slug
+    print("Sending reqwest: " + request)
+    req = requests.get(url = request)
+    return req.json()["accountId"]
 
 def get_matches(id, start_idx, end_idx):
     api_endpoint_base = "/lol/match/v4/matchlists/by-account"
@@ -42,21 +43,21 @@ def get_matches(id, start_idx, end_idx):
             "&api_key=" + API_KEY
     request = ENDPOINT + slug
     print("Sending reqwest: " + request)
-
-    return j
+    req = requests.get(url = request)
+    return req.json()
 
 def get_game_info(game_id):
     api_endpoint_base = "/lol/match/v4/matches/"
-    slug = api_endpoint_base + game_id + \
+    slug = api_endpoint_base + str(game_id) + \
             "?api_key=" + API_KEY
     request = ENDPOINT + slug
     print("Sending reqwest: " + request)
-
-    return j
+    req = requests.get(url = request)
+    return req.json()
 
 
 def collect_data(summoner):
-    data = {}
+    data = list()
 
     enc_account_id = get_encrypted_account_id(summoner)
     print("encrypted account id: " + enc_account_id)
@@ -68,15 +69,20 @@ def collect_data(summoner):
     end_idx = 100
     while (more_matches):
         matches = get_matches(enc_account_id, start_idx, end_idx)
-        print("matches: " + matches)
+        print("matches: " + str(matches))
 
         # Set up the next indexes
         start_idx = end_idx+1;
         end_idx = start_idx + 100;
+        print("New indexes: start: " + str(start_idx) + " end: " + str(end_idx))
 
         range_start = matches["startIndex"]
         range_end = matches["endIndex"]
         more_matches = range_end-range_start == 100
+        print("range_start: " +  str(range_start) + \
+              " range_end: " + str(range_end) + \
+              " diff: " + str(range_end-range_start))
+        print("more_matches: " + str(more_matches))
 
         games = matches["matches"];
         for a_game in games:
@@ -88,7 +94,7 @@ def collect_data(summoner):
             stats = game_info["teams"]
             participant_identities = game_info["participantIdentities"]
             participants = game_info["participants"]
-            assert(participant_identities.len() == participants.len())
+            assert(len(participant_identities) == len(participants))
 
             # Get all the participants for this game
             blue_team = []
@@ -114,9 +120,11 @@ def collect_data(summoner):
                 p.summoner_name = summoner_name
                 p.summoner_id = summoner_id
 
+                if team_id not in game.teams:
+                    game.teams[team_id] = list()
                 game.teams[team_id].append(p)
 
-            data.push(game);
+            data.append(game);
     return data
 
 def analyze_data(data):
